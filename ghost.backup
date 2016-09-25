@@ -1,0 +1,110 @@
+#! /bin/bash
+# -----
+# Ghost.org blogging platform backup script
+# This script is a part of SCI Ghost Toolkit
+#
+# Usage: ghost.backup /path/to/ghost /way/to/backup 
+#        ghost.backup /path/to/ghost
+# 
+# Note: By default, script backups ghost to /var/backups/ghost
+# -----
+# Author: Adanos Flamel, SCI
+#         adanos@stormcage.ru
+# -----
+
+# ----- Checking run mode ----- Begin -----
+if [[ $(echo $* | grep -e "--chain") ]]; then
+	backupmode=0
+else
+	backupmode=1
+fi
+# ----- Checking run mode -----  End  -----
+
+# ----- Checks for standalone mode ----- Begin -----
+if [[ backupmode -eq 1 ]]; then
+	# Some configuration things
+	PATH=$PATH:.
+
+	# ----- Print usage message----- Begin -----
+	if [[ $(echo $* | grep -e "--help") ]]; then
+		. ghost.assets backup_help
+		exit $?
+	fi
+	# ----- Print usage message -----  End  -----
+
+	# ----- Require arguments ----- Begin -----
+	if [[ $* == "" || $# < 1 ]]; then
+	    echo -e "[Ghost Backup]: Missing arguments.\n" \
+	            "Usage: ghost.backup /path/to/ghost \n" \ 
+	            "       ghost.backup /path/to/ghost /way/to/backup \n"
+	    exit 2
+	fi
+	# ----- Require arguments -----  End  -----
+
+	# ----- Require root access ----- Begin -----
+	if [[ $UID != 0 ]]; then
+	    echo "[Ghost Backup]: Please run this script with sudo:"
+	    echo "sudo $0 $*"
+	    exit 3
+	fi
+	# ----- Require root access -----  End  -----
+
+	# ----- Setup paths ----- Begin -----
+	ghostpath=$1 # Path to ghost installation
+	if [[ -z $2 ]]; then
+		ghostbackuppath="/var/backups/ghost"
+	else
+		ghostbackuppath=$2
+	fi
+
+	if [[ -z $ghostworkpath ]]; then
+		ghostworkpath="/tmp/ghosttemp"
+		mkdir -p $ghostworkpath
+	fi
+	# ----- Setup paths -----  End  -----
+fi
+# ----- Checks for standalone mode -----  End  -----
+
+# ----- The script itself ----- Begin -----
+ghostbackupdate=`date +"%Y%m%d"`
+
+# Checking backup path is specified
+if [[ ! -z $(echo $* | grep -e "--chain") && -z $2 ]]; then
+	ghostbackuppath="/var/backups/ghost"
+fi
+
+echo "[Ghost Backup]: Copying files to $ghostworkpath"
+rsync -Aax $ghostpath/content         $ghostworkpath/
+
+if [[ $? -ne 0 ]]; then
+	echo "[Ghost Backup]: Failed copying content."
+	exit 6
+fi
+
+rsync -Aax $ghostpath/config.js       $ghostworkpath/
+
+if [[ $? -ne 0 ]]; then
+	echo "[Ghost Backup]: Failed copying config."
+	exit 7
+fi
+
+echo "[Ghost Backup]: Archiving files to $ghostbackuppath"
+if [[ ! -d $ghostbackuppath ]]; then
+	mkdir -p $ghostbackuppath
+fi
+
+tar -caf $ghostbackuppath/ghost-`basename $ghostpath`-backup-$ghostbackupdate.tar.bz2 $ghostworkpath
+
+if [[ $? -ne 0 ]]; then
+	echo "[Ghost Backup]: Archiving failed."
+	exit 8
+else
+	echo "[Ghost Backup]: Backup successfull."
+fi
+# ----- The script itself -----  End  -----
+
+# Clear working folder case standalone
+if [[ backupmode -eq 1 ]]; then
+	echo "[Ghost Backup]: Removing working directory."
+	rm -rf $ghostworkpath
+fi

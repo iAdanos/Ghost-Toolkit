@@ -1,0 +1,48 @@
+#! /bin/bash
+# -----
+# Ghost.org blogging platform updater script's assets
+# This script is a part of SCI Ghost Toolkit
+#
+# Usage: ghost.assets toolname
+#
+# Tools:
+# help - print help message
+# -----
+# Author: Adanos Flamel, SCI
+#         adanos@stormcage.ru
+# -----
+
+# ----- Function to print updater usage ----- Begin -----
+ghost_update_help () {
+	echo -e "\n" \
+			"[Ghost Updater]: Ghost.org blogging platform updater script. \n" \
+			"Script makes backups (only data) at /var/backups/ghost/ \n" \
+			"\n" \
+			"All of the ./ghost.* scripts needed. \n" \
+			"Usage: ghost.update ghostservicename /path/to/ghost \n"
+	return 1
+}
+# ----- Function to print updater usage -----  End  -----
+
+# ----- Function to print backuper usage ----- Begin -----
+ghost_backup_help () {
+	echo -e "\n" \
+			"[Ghost Backup]: Ghost.org blogging platform backup script. \n" \
+			"Usage: ghost.backup /path/to/ghost /way/to/backup \n" \
+	        "       ghost.backup /path/to/ghost \n" \
+	        "\n" \
+			"Note: By default, script backups ghost to /var/backups/ghost \n" \
+			"ghost.assets script needed. rsync needed. \n"
+	return 1
+}
+# ----- Function to print backuper usage -----  End  -----
+
+# ----- The script itself ----- Begin -----
+if [[ $1 != "" ]]; then
+	ghost_$1
+	exit $?
+else
+	echo "[Ghost Updater]: Tool not set"
+	exit 404
+fi
+# ----- The script itself -----  End  -----

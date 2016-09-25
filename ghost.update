@@ -1,0 +1,119 @@
+#! /bin/bash
+# -----
+# Ghost.org blogging platform updater script. 
+# This script is a part of SCI Ghost Toolkit.
+#
+# Script makes backups (only data) at /var/backups/ghost/.
+# All of the ./ghost.* scripts needed.
+#
+# Usage: ghost.update ghostservicename /path/to/ghost
+#
+# Error codes:
+# 1 - Usage output
+# 2 - Missing ghost installation path
+# 3 - Script needs sudo
+# 4 - Given path to ghost is not valid
+# 5 - Could not stop service
+# 6 - Backup script could not rsync content
+# 7 - Backup script could not rsync config
+# 8 - Backup script could not archive file
+# 404 - Tool not found in ghost.assets
+# -----
+# Author: Adanos Flamel, SCI
+#         adanos@stormcage.ru
+# -----
+
+# Some configuration things
+PATH=$PATH:.
+
+# ----- Print usage message----- Begin -----
+if [[ $(echo $* | grep -e "--help") ]]; then
+	. ghost.assets update_help
+	exit $?
+fi
+# ----- Print usage message -----  End  -----
+
+# ----- Require arguments ----- Begin -----
+if [[ $* == "" || $# < 2 ]]; then
+    echo -e "[Ghost Updater]: Missing arguments.\n" \
+            "Usage: ghost.update ghostservicename /path/to/ghost \n"
+    exit 2
+fi
+# ----- Require arguments -----  End  -----
+
+# ----- Require root access ----- Begin -----
+if [[ $UID != 0 ]]; then
+    echo "[Ghost Updater]: Please run this script with sudo:"
+    echo "sudo $0 $*"
+    exit 3
+fi
+# ----- Require root access -----  End  -----
+
+ghostpath=$2 # Path to ghost installation
+
+# ----- Check ghost directory ----- Begin -----
+if [[ ! -d $ghostpath ]]; then
+    echo "[Ghost Updater]: $ghostpath is not a directory."
+    exit 4
+fi
+# ----- Check ghost directory -----  End  -----
+
+ghostservice=$1 # Ghost service name
+
+# ----- Stop ghost instance ----- Begin -----
+echo "[Ghost Updater]: Stopping Ghost instance."
+service $ghostservice stop
+if [[ $? != 0 ]]; then
+	echo "[Ghost Updater]: Service $ghostservice was not stopped successfully."
+	exit 5
+fi
+# ----- Stop ghost instance -----  End  -----
+
+# ---- Create Ghost toolkit working directory ----- Begin -----
+ghostworkpath="/tmp/ghosttemp"
+mkdir $ghostworkpath
+# ---- Create Ghost toolkit working directory -----  End  -----
+
+echo "[Ghost Updater]: Backuping Ghost data."
+. ghost.backup --chain # Backup ghost
+
+# ---- Download and unzip lastest ghost distributive ----- Begin -----
+echo "[Ghost Updater]: Downloading and unzipping lastest Ghost."
+cd $ghostworkpath
+curl -LOk https://ghost.org/zip/ghost-latest.zip
+unzip ghost-latest.zip -d ghost-latest
+# ---- Download and unzip lastest ghost distributive -----  End  -----
+
+# ---- Update process itself ----- Begin -----
+echo "[Ghost Updater]: Removing old engine files."
+rm -rf $ghostpath/core
+rm -f $ghostpath/config.example.js
+rm -f $ghostpath/Gruntfile.js
+rm -f $ghostpath/index.js
+rm -f $ghostpath/npm-debug.log
+rm -f $ghostpath/package.json
+rm -f $ghostpath/PRIVACY.md
+rm -f $ghostpath/README.md
+
+echo "[Ghost Updater]: Removing old engine files."
+cp -r $ghostworkpath/ghost-latest/core                  $ghostpath/
+cp -r $ghostworkpath/ghost-latest/content/themes/casper $ghostpath/content/themes/
+cp $ghostworkpath/ghost-latest/index.js                 $ghostpath/
+cp $ghostworkpath/ghost-latest/package.json             $ghostpath/
+cp $ghostworkpath/ghost-latest/npm-shrinkwrap.json      $ghostpath/
+cp $ghostworkpath/ghost-latest/Gruntfile.js             $ghostpath/
+
+echo "[Ghost Updater]: Updating permissions."
+ghostowner=`ls -l $ghostpath/config.js | awk '{print $3}'` # Ghost directory owner
+chown -R $ghostowner $ghostpath
+
+echo "[Ghost Updater]: Applying update."
+cd $ghostpath
+npm install --production
+
+echo "[Ghost Updater]: Starting Ghost."
+service $ghostservice start
+# ---- Update process itself -----  End  -----
+
+echo "[Ghost Backup]: Removing working directory."
+rm -rf $ghostworkpath
